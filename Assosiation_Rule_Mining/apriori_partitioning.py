@@ -74,27 +74,14 @@ class Apriori():
 			Cset = self.joinSet(Lset,k)
 			### Remove infrequent
 			Lset = self.ItemsWithMinSupport(Cset)
-			print(k)
+			# print(k)
 			k = k+1
 
 		for _,val in self.ans.items():
-			self.realtionItems.extend([(tuple(item),float(self.freqSet[item])/self.n) for item in val])
+			self.realtionItems.extend([tuple(item) for item in val])
 
-		for k,val in self.ans.items():
-			if k == 1:
-				continue
-			for item in val:
-				subsets = self.nonEmptySubsets(item)
-				for x in subsets:
-					x = frozenset(x)
-					diff = item.difference(x)
-
-					if len(diff) > 0:
-						conf = float(self.freqSet[item])/float(self.freqSet[x])
-						if conf >= self.min_confidence:
-							self.realtions.append(((tuple(x),tuple(diff)),conf))
-
-		print(self.realtions)
+		
+		# print(self.realtions)
 
 
 
@@ -110,11 +97,48 @@ class Apriori():
 
 
 
-		
+def nonEmptySubsets(X):
+		return list(chain.from_iterable([combinations(X,r) for r in range(1,len(X)+1)]))	
 
 
 
 
+def get_ItemSets_and_Rules_from_Global(Global_L,all_transactions,min_support,min_confidence):
+	Freq_ItemSets = set()
+	Rules = []
+	temp = defaultdict(int)
+
+	for item in Global_L:
+		for transaction in all_transactions:
+			item = frozenset(item)
+			if item.issubset(transaction):
+				temp[item] = temp[item]+1
+
+
+	for item, count in temp.items():
+		support = float(count)/len(all_transactions)
+		if support >= min_support:
+			Freq_ItemSets.add((tuple(item),support))
+
+	for item in Freq_ItemSets:
+		obj = frozenset(item[0])
+		# print(obj)
+		subsets = nonEmptySubsets(obj)
+		# print(subsets)
+		for x in subsets:
+			# print(x)
+			l = frozenset(x)
+			# print(l)
+			diff = obj.difference(l)
+			# print(diff)
+			if len(diff) > 0:
+				conf = float(temp[obj])/float(temp[l])
+				if conf >= min_confidence:
+					Rules.append(((tuple(l),tuple(diff)),conf))
+	# for item in Freq_ItemSets:
+	# 	print(item)
+
+	return Freq_ItemSets,Rules
 
 
 
@@ -139,6 +163,24 @@ def printResults(items, rules):
 if __name__ == "__main__":
 	# transaction = fetchData('./data/test.txt')
 	transaction = fetchData('./data/BMS1_spmf')
-	apriori = Apriori(0.015,0.6)
-	apriori.run(transaction)
-	printResults(apriori.realtionItems,apriori.realtions)
+	min_support = 0.015
+	min_confidence = 0.6
+	num_partitions = 5
+
+	apriori = [Apriori(min_support/num_partitions,min_confidence) for i in range(num_partitions)]
+	transaction = list(transaction)
+	print(len(transaction))
+	for i in range(num_partitions):
+		print(i)
+		apriori[i].run(transaction[len(transaction)*i//num_partitions:len(transaction)*(i+1)//num_partitions])
+		# printResults(apriori[i].realtionItems,apriori[i].realtions)
+
+	# print(apriori[0].realtionItems)
+	Global_L = set()
+
+	for idx in range(num_partitions):
+		Global_L = set().union(Global_L,apriori[idx].realtionItems)
+
+	# print(Global_L)
+	ItemSets, Rules = get_ItemSets_and_Rules_from_Global(Global_L,transaction,min_support,min_confidence)
+	printResults(ItemSets,Rules)

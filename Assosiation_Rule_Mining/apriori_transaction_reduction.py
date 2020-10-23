@@ -13,6 +13,7 @@ class Apriori():
 		self.realtions = []
 		self.ans = dict()
 
+
 	def getItemSetTransList(self,data_itr):
 		for rows in data_itr:
 			self.transactionList.append(rows)
@@ -31,10 +32,31 @@ class Apriori():
 					self.freqSet[item] = self.freqSet[item]+1
 					temp[item] = temp[item]+1
 
+
+		
+
+
 		for item, count in temp.items():
 			support = float(count)/self.n
 			if support >= self.min_support:
 				Cset.add(item)
+		# print("Cset")
+		# print(Cset)
+
+		### Transaction Reduction
+		# print("Transactions")
+		idx = 0
+		for transaction in self.transactionList:
+			has_item = False
+			for item in Cset:
+				if item.issubset(transaction):
+					has_item = True
+					break
+
+			if has_item == False:
+				del self.transactionList[idx]
+			idx = idx+1
+
 
 		return Cset
 
@@ -94,7 +116,7 @@ class Apriori():
 						if conf >= self.min_confidence:
 							self.realtions.append(((tuple(x),tuple(diff)),conf))
 
-		print(self.realtions)
+		# print(self.realtions)
 
 
 
@@ -139,6 +161,6 @@ def printResults(items, rules):
 if __name__ == "__main__":
 	# transaction = fetchData('./data/test.txt')
 	transaction = fetchData('./data/BMS1_spmf')
-	apriori = Apriori(0.015,0.6)
+	apriori = Apriori(0.005,0.6)
 	apriori.run(transaction)
 	printResults(apriori.realtionItems,apriori.realtions)
