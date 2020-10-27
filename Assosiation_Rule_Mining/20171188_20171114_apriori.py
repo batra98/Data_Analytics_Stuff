@@ -1,5 +1,7 @@
 from collections import defaultdict
 from itertools import chain,combinations
+from time import time
+import numpy as np
 
 
 class Apriori():
@@ -36,6 +38,18 @@ class Apriori():
 			if support >= self.min_support:
 				Cset.add(item)
 
+		idx = 0
+		for transaction in self.transactionList:
+			has_item = False
+			for item in Cset:
+				if item.issubset(transaction):
+					has_item = True
+					break
+
+			if has_item == False:
+				del self.transactionList[idx]
+			idx = idx+1
+
 		return Cset
 
 	def joinSet(self,itemSet,k):
@@ -68,20 +82,20 @@ class Apriori():
 		self.getItemSetTransList(data_itr)
 		Lset = self.ItemsWithMinSupport(self.itemSet) #### 1 - frequent
 		k = 2
+		
 		while len(Lset) != 0:
 			self.ans[k-1] = Lset
 			### Create new Candidates
 			Cset = self.joinSet(Lset,k)
 			### Remove infrequent
 			Lset = self.ItemsWithMinSupport(Cset)
-			# print(k)
+			print("K = "+str(k))
 			k = k+1
 
 		for _,val in self.ans.items():
 			self.realtionItems.extend([tuple(item) for item in val])
 
 		
-		# print(self.realtions)
 
 
 
@@ -115,28 +129,24 @@ def get_ItemSets_and_Rules_from_Global(Global_L,all_transactions,min_support,min
 				temp[item] = temp[item]+1
 
 
+
 	for item, count in temp.items():
 		support = float(count)/len(all_transactions)
+
 		if support >= min_support:
 			Freq_ItemSets.add((tuple(item),support))
 
 	for item in Freq_ItemSets:
 		obj = frozenset(item[0])
-		# print(obj)
 		subsets = nonEmptySubsets(obj)
-		# print(subsets)
 		for x in subsets:
-			# print(x)
 			l = frozenset(x)
-			# print(l)
 			diff = obj.difference(l)
-			# print(diff)
 			if len(diff) > 0:
 				conf = float(temp[obj])/float(temp[l])
 				if conf >= min_confidence:
 					Rules.append(((tuple(l),tuple(diff)),conf))
-	# for item in Freq_ItemSets:
-	# 	print(item)
+	
 
 	return Freq_ItemSets,Rules
 
@@ -151,36 +161,76 @@ def fetchData(file_name):
 
 
 def printResults(items, rules):
-    """prints the generated itemsets sorted by support and the confidence rules sorted by confidence"""
+    print("\n------------------------ FREQUENT ITEMSETS:")
     for item, support in sorted(items, key=lambda x: x[1]):
-        print("item: %s , %.3f" % (str(item), support))
+        print("ITEM: "+str(item)+" ,Support: "+str(support))
     print("\n------------------------ RULES:")
     for rule, confidence in sorted(rules, key=lambda x: x[1]):
-        pre, post = rule
-        print("Rule: %s ==> %s , %.3f" % (str(pre), str(post), confidence))
+        print("RULE: "+str(rule[0])+" ==> "+str(rule[1])+" , Confidence: "+str(confidence))
 
 
 if __name__ == "__main__":
-	# transaction = fetchData('./data/test.txt')
-	transaction = fetchData('./data/BMS1_spmf')
-	min_support = 0.015
-	min_confidence = 0.6
-	num_partitions = 5
+
+	print("Choose Data File: ")
+	file_names = ['BMS1_spmf','BMS2.txt','LEVIATHAN.txt']
+
+	for i in range(len(file_names)):
+		print(str(i)+": "+file_names[i])
+
+	idx = int(input())
+	if idx >= len(file_names) or idx < 0:
+		print("please enter valid index")
+		exit()
+	path = file_names[idx]
+
+
+	print("Enter Minimum Support Value % (0-1): ")
+	min_support = float(input())
+
+	if min_support >= len(file_names) or min_support < 0:
+		print("please enter valid min_support")
+		exit()
+
+	print("Enter Minimum Confidence Value % (0-1): ")
+	min_confidence = float(input())
+
+	if min_confidence >= len(file_names) or min_confidence < 0:
+		print("please enter valid min_confidence")
+		exit()
+
+	print("Enter Number of Partitions Value: ")
+	num_partitions = int(input())
+
+
+
+	transaction = fetchData('./data/'+path)
+	
 
 	apriori = [Apriori(min_support/num_partitions,min_confidence) for i in range(num_partitions)]
 	transaction = list(transaction)
-	print(len(transaction))
+	
+	times = []
+
 	for i in range(num_partitions):
-		print(i)
+		start = time()
 		apriori[i].run(transaction[len(transaction)*i//num_partitions:len(transaction)*(i+1)//num_partitions])
-		# printResults(apriori[i].realtionItems,apriori[i].realtions)
+		end = time()
 
-	# print(apriori[0].realtionItems)
+		times.append(end-start)
+
+
 	Global_L = set()
-
 	for idx in range(num_partitions):
-		Global_L = set().union(Global_L,apriori[idx].realtionItems)
-
-	# print(Global_L)
+		for itemSets in apriori[idx].realtionItems:
+			itemSets = tuple(sorted(itemSets))
+			Global_L.add(itemSets)
+	
+	start = time()
+	
 	ItemSets, Rules = get_ItemSets_and_Rules_from_Global(Global_L,transaction,min_support,min_confidence)
+	
+	end = time()
+
 	printResults(ItemSets,Rules)
+	print("Total Time: ")
+	print((end-start)+np.max(times))
