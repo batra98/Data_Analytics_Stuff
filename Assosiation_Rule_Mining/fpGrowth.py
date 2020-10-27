@@ -3,16 +3,16 @@ import copy
 import time
 import operator
 class Node:
-  def __init__(self, id):
-    self.id = id
+  def __init__(self, ide):
+    self.ide = ide
     self.parent = {}
     self.count = 0
     self.child = {}
 
-minsup = 0.005
+minsup = 0.08
 confidence = 0.6
 
-file = './data/SIGN.txt'
+file = './data/pfden.dat'
 
 start_preprocess = time.time()
 
@@ -21,14 +21,10 @@ itemSet = set()
 with open(file,'r') as f:
   for line in f:
     row = line.strip().rstrip('-2').replace(" ","").rstrip('-1').split('-1')
-    row.sort()
+    row = list(dict.fromkeys(row))
     transactionList.append(row)
     for item in row:
       itemSet.add(item)
-
-itemNum_map = {}
-numItem_map = {}
-item_node = []
 
 hashmap = {}
 for i in range(len(transactionList)):
@@ -36,7 +32,11 @@ for i in range(len(transactionList)):
 		if ( hashmap.get(transactionList[i][j]) == None ):
 			hashmap[transactionList[i][j]] = 0
 		hashmap[transactionList[i][j]] += 1
-hashmap = sorted(hashmap.items(), key=operator.itemgetter(1))
+hashmap = sorted(hashmap.items(), key=operator.itemgetter(1), reverse = True)
+
+itemNum_map = {}
+numItem_map = {}
+item_node = []
 
 for i in range(len(hashmap)):
   itemNum_map[hashmap[i][0]] = i
@@ -48,8 +48,8 @@ for i in range(len(transactionList)):
   temp = []
   for j in range(len(transactionList[i])):
     temp.append(itemNum_map[transactionList[i][j]])
-  transactions.append(temp)
-
+  temp = sorted(temp) 
+  transactions.append(copy.copy(temp))
 # Closed Set for the bonus part
 closed_set = []
 
@@ -60,7 +60,7 @@ for i in range(len(transactions)):
   if(root.child.get(transactions[i][0]) == None):
     root.child[transactions[i][0]] = len(item_node[transactions[i][0]])
     temp = Node(transactions[i][0])
-    temp.parent[root.id] = 0
+    temp.parent[root.ide] = 0
     item_node[transactions[i][0]].append(temp)
   
   current_Node = transactions[i][0]
@@ -82,7 +82,7 @@ end_preprocess = time.time()
 print("Data Pre-processing Time - ",round(end_preprocess - start_preprocess,5)," Seconds")
 print()
 
-def growth_optimized(nodes,id):
+def growth_optimized(nodes,ide):
   frequency = []
   nodeSet = []
   for i in range(len(itemSet)):
@@ -95,9 +95,9 @@ def growth_optimized(nodes,id):
   while(len(nodes) > 0):
     x = nodes[0]
     nodes.pop(0)
-    frequency[x.id]+=x.count
+    frequency[x.ide]+=x.count
     for i in x.child:
-      nodeSet[x.id].append(item_node[i][x.child[i]])
+      nodeSet[x.ide].append(item_node[i][x.child[i]])
       nodes.append(item_node[i][x.child[i]])
 
   for i in range(len(itemSet)):
@@ -105,21 +105,22 @@ def growth_optimized(nodes,id):
     if(support >= minsup):
       frequent_sets.append([i])
       frequent_setSupport.append(support)
-      id.append(i)
-      candidate_sets, candidate_support = growth_optimized(nodeSet[i],id)
+      ide.append(i)
+      candidate_sets, candidate_support = growth_optimized(copy.copy(nodeSet[i]),copy.copy(ide))
       for j in range(len(candidate_sets)):
         if(candidate_support[j]/support >= confidence):
-          rules.append([copy.copy(id),copy.copy(candidate_sets[j]),candidate_support[j]/support])
+          rules.append([copy.copy(ide),copy.copy(candidate_sets[j]),candidate_support[j]/support])
         if(candidate_support[j] == support):
-        	closed_set.append(copy.copy(id))
+        	closed_set.append(sorted(copy.copy(ide)))
         candidate_sets[j].append(i)
+        candidate_sets[j] = sorted(candidate_sets[j])
         frequent_sets.append(candidate_sets[j])
         frequent_setSupport.append(candidate_support[j])
-      id.pop(len(id)-1)
+      ide.pop(len(ide)-1)
 
   return frequent_sets, frequent_setSupport
 
-def fpGrowth_optimized(nodes,id):
+def fpGrowth_optimized(nodes,ide):
 	nodeSet = []
 	frequentSets = []
 	setSupport = []
@@ -127,20 +128,20 @@ def fpGrowth_optimized(nodes,id):
 
 	for i in range(len(nodes)):
 		frequency += nodes[i].count
-	for j in nodes[i].child:
-		nodeSet.append(item_node[j][nodes[i].child[j]])
+		for j in nodes[i].child:
+			nodeSet.append(item_node[j][nodes[i].child[j]])
 
 	support = frequency/len(transactions)
 	if(support >= minsup):
-		frequentSets.append(id)
+		frequentSets.append(ide)
 		setSupport.append(support)
-		candidate_sets, candidate_support = growth_optimized(nodeSet,id)
+		candidate_sets, candidate_support = growth_optimized(copy.copy(nodeSet),copy.copy(ide))
 		for i in range(len(candidate_sets)):
 			if(candidate_support[i]/support >= confidence):
-				rules.append([copy.copy(id),copy.copy(candidate_sets[i]),candidate_support[i]/support])
+				rules.append([copy.copy(ide),copy.copy(candidate_sets[i]),candidate_support[i]/support])
 			if(candidate_support[i] == support):
-				closed_set.append(copy.copy(id))
-			candidate_sets[i].extend(id)
+				closed_set.append(sorted(copy.copy(ide)))
+			candidate_sets[i].extend(ide)
 			candidate_sets[i] = sorted(candidate_sets[i])
 			frequentSets.append(candidate_sets[i])
 			setSupport.append(candidate_support[i])
@@ -161,7 +162,7 @@ def num2Item(frequent_Sets):
 frequent_Sets = []
 frequent_Supports = []
 rules = []
-for i in range(len(item_node)-1,-1,-1):
+for i in range(len(item_node)):
   can_Sets, can_Supports = fpGrowth_optimized(item_node[i],[i])
   frequent_Sets.extend(can_Sets)
   frequent_Supports.extend(can_Supports)
@@ -192,7 +193,7 @@ print("Optimised FP Growth Implementation Time - ",round(end_basicFP - end_prepr
 print()
 # Basic FP-Growth
 
-def growth_basic(nodes,nodeFreq,id):
+def growth_basic(nodes,nodeFreq,ide):
   frequency = []
   nodeSet = []
   nodeSetfreq = []
@@ -207,14 +208,13 @@ def growth_basic(nodes,nodeFreq,id):
   while(len(nodes) > 0):
     x = nodes[0]
     freq = nodeFreq[0]    
-    frequency[x.id]+=freq
+    frequency[x.ide]+=freq
     nodes.pop(0)
     nodeFreq.pop(0)
-
     for i in x.parent:
       if i != -1:
-        nodeSet[x.id].append(item_node[i][x.parent[i]])
-        nodeSetfreq[x.id].append(freq)
+        nodeSet[x.ide].append(item_node[i][x.parent[i]])
+        nodeSetfreq[x.ide].append(freq)
         nodes.append(item_node[i][x.parent[i]])
         nodeFreq.append(freq)
 
@@ -223,21 +223,21 @@ def growth_basic(nodes,nodeFreq,id):
     if(support >= minsup):
       frequent_sets.append([i])
       frequent_setSupport.append(support)
-      id.append(i)
-      candidate_sets, candidate_support = growth_basic(nodeSet[i],copy.copy(nodeSetfreq[i]),id)
+      ide.append(i)
+      candidate_sets, candidate_support = growth_basic(copy.copy(nodeSet[i]),copy.copy(nodeSetfreq[i]),copy.copy(ide))
       for j in range(len(candidate_sets)):
         if(candidate_support[j]/support >= confidence):
-          rules.append([copy.copy(id),copy.copy(candidate_sets[j]),candidate_support[j]/support])
+          rules.append([copy.copy(ide),copy.copy(candidate_sets[j]),candidate_support[j]/support])
         if(candidate_support[j] == support):
-          closed_set.append(copy.copy(id))
+          closed_set.append(sorted(copy.copy(ide)))
         candidate_sets[j].append(i)
         frequent_sets.append(candidate_sets[j])
         frequent_setSupport.append(candidate_support[j])
-      id.pop(-1)
+      ide.pop(-1)
 
   return frequent_sets, frequent_setSupport
 
-def fpGrowth_basic(nodes,id):
+def fpGrowth_basic(nodes,ide):
   nodeSet = []
   nodeSetfreq = []
   frequentSets = []
@@ -253,15 +253,15 @@ def fpGrowth_basic(nodes,id):
 
   support = frequency/len(transactions)
   if(support >= minsup):
-    frequentSets.append(id)
+    frequentSets.append(ide)
     setSupport.append(support)
-    candidate_sets, candidate_support = growth_basic(nodeSet,copy.copy(nodeSetfreq),id)
+    candidate_sets, candidate_support = growth_basic(copy.copy(nodeSet),copy.copy(nodeSetfreq),copy.copy(ide))
     for i in range(len(candidate_sets)):
       if(candidate_support[i]/support >= confidence):
-        rules.append([copy.copy(id),copy.copy(candidate_sets[i]),candidate_support[i]/support])
+        rules.append([copy.copy(ide),copy.copy(candidate_sets[i]),candidate_support[i]/support])
       if(candidate_support[i] == support):
-      	closed_set.append(copy.copy(id))
-      candidate_sets[i].extend(id)
+      	closed_set.append(copy.copy(ide))
+      candidate_sets[i].extend(ide)
       candidate_sets[i] = sorted(candidate_sets[i])
       frequentSets.append(candidate_sets[i])
       setSupport.append(candidate_support[i])
@@ -269,8 +269,9 @@ def fpGrowth_basic(nodes,id):
 
 frequent_Sets = []
 frequent_Supports = []
+rules = []
 
-for i in range(len(item_node)):
+for i in range(len(item_node)-1,-1,-1):
   can_Sets, can_Supports = fpGrowth_optimized(item_node[i],[i])
   frequent_Sets.extend(can_Sets)
   frequent_Supports.extend(can_Supports)
